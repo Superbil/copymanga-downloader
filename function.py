@@ -1,5 +1,7 @@
 import time
 
+from rich import print
+
 import config
 from settings import save_settings
 
@@ -13,6 +15,7 @@ def is_contains_chinese(strs):
 
 # API限制相关
 
+
 def api_restriction():
     config.API_COUNTER += 1
     # 防止退出后立马再次运行
@@ -23,8 +26,10 @@ def api_restriction():
         config.API_COUNTER = config.API_COUNTER + config.OG_SETTINGS['API_COUNTER']
     if config.API_COUNTER >= 15:
         config.API_COUNTER = 0
-        print("[bold yellow]您已经触发到了API请求阈值，我们将等60秒后再进行[/]")
+        # print("[bold yellow]您已经触发到了API请求阈值，我们将等60秒后再进行[/]")
+        print("[bold yellow] API Limit, sleep 60s 💤 [/]")
         time.sleep(60)
+
     config.OG_SETTINGS['API_COUNTER'] = config.API_COUNTER
     config.OG_SETTINGS['api_time'] = time.time()
     # 将时间戳与API请求数量写入配置文件
@@ -38,7 +43,11 @@ def img_api_restriction():
     time_diff = time.time() - config.IMG_CURRENT_TIME
     # 判断是否超过60秒
     if time_diff < 60 and config.IMG_API_COUNTER >= 100:
-        print("[bold yellow]您已经触发到了图片服务器API请求阈值，我们将等60秒后再进行[/]")
+        # print("[bold yellow]您已经触发到了图片服务器API请求阈值，我们将等60秒后再进行[/]")
+        print(
+            "[bold yellow] The image server API limit value was triggered, sleep 60s 💤 [/]",
+        )
         time.sleep(60)
+
         config.IMG_CURRENT_TIME = 0
         config.IMG_API_COUNTER = 0
