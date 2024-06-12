@@ -2,24 +2,24 @@ import argparse
 import csv
 import json
 import os
+import queue
 import string
 import sys
 import threading
 import time
-import queue
 
 import requests as requests
 from rich import print
 from rich.console import Console
 from rich.progress import track
-from rich.prompt import Prompt, IntPrompt
+from rich.prompt import IntPrompt, Prompt
 
 import config
-from my_cbz import create_cbz
 from epub import epub_transformerhelper
-from function import img_api_restriction, api_restriction
+from function import api_restriction, img_api_restriction
 from login import login, login_information_builder
-from settings import save_settings, load_settings, set_settings, change_settings
+from my_cbz import create_cbz
+from settings import change_settings, load_settings, save_settings, set_settings
 
 console = Console(color_system='256', style=None)
 
@@ -34,12 +34,19 @@ def parse_args():
 
     parser.add_argument(
         '--MangaPath',
-        help='漫画的全拼，https://copymanga.site/comic/这部分')
+        help='漫画的全拼，https://copymanga.site/comic/这部分',
+    )
     parser.add_argument(
         '--MangaGroup',
-        help='漫画的分组Path_Word，默认为default', default='default')
+        help='漫画的分组Path_Word，默认为default',
+        default='default',
+    )
 
-    parser.add_argument('--Url', help='copymanga的域名,如使用copymanga.site，那就输入site(默认为site)', default="site")
+    parser.add_argument(
+        '--Url',
+        help='copymanga的域名,如使用copymanga.site，那就输入site(默认为site)',
+        default="site",
+    )
 
     parser.add_argument('--Output', help='输出文件夹')
 
@@ -47,21 +54,27 @@ def parse_args():
     parser.add_argument(
         '--subscribe',
         help='是否切换到自动更新订阅模式(1/0，默认关闭(0))',
-        default="0")
+        default="0",
+    )
 
     parser.add_argument(
         '--UseWebp',
         help='是否使用Webp(1/0，默认开启(1))',
-        default="1")
+        default="1",
+    )
 
     parser.add_argument(
         '--UseOSCdn',
         help='是否使用海外cdn(1/0，默认关闭(0))',
-        default="0")
+        default="0",
+    )
 
     parser.add_argument('--MangaStart', help='漫画开始下载话(如果想全部下载请输入0)')
 
-    parser.add_argument('--MangaEnd', help='漫画结束下载话(如果只想下载一话请与MangaStart相同,如果想全部下载请输入0)')
+    parser.add_argument(
+        '--MangaEnd',
+        help='漫画结束下载话(如果只想下载一话请与MangaStart相同,如果想全部下载请输入0)',
+    )
 
     parser.add_argument('--Proxy', help='设置代理')
 
@@ -81,7 +94,7 @@ def command_mode():
     if ARGS.Proxy:
         config.PROXIES = {
             "http": ARGS.Proxy,
-            "https": ARGS.Proxy
+            "https": ARGS.Proxy,
         }
     if ARGS.Output:
         config.SETTINGS['download_path'] = ARGS.Output
@@ -92,11 +105,16 @@ def command_mode():
 
 # 正常模式
 
+
 def welcome():
     choice_manga_path_word = None
-    want_to = int(Prompt.ask(
-        "您是想搜索还是查看您的收藏？[italic yellow](0:导出收藏,1:搜索,2:收藏,3:添加半自动更新,9:修改设置)[/]",
-        choices=["0", "1", "2", "3", "9"], default="1"))
+    want_to = int(
+        Prompt.ask(
+            "您是想搜索还是查看您的收藏？[italic yellow](0:导出收藏,1:搜索,2:收藏,3:添加半自动更新,9:修改设置)[/]",
+            choices=["0", "1", "2", "3", "9"],
+            default="1",
+        ),
+    )
     if want_to == 0:
         collect_expect()
         return
@@ -121,14 +139,21 @@ def updates():
     have_list = load_updates()
     if have_list:
         update_list()
-        update_want_to = int(Prompt.ask("您是想添加漫画还是删除漫画？[italic yellow](0:添加,1:删除)[/]",
-                                        choices=["0", "1"], default="0"))
+        update_want_to = int(
+            Prompt.ask(
+                "您是想添加漫画还是删除漫画？[italic yellow](0:添加,1:删除)[/]",
+                choices=["0", "1"],
+                default="0",
+            ),
+        )
     if update_want_to == 0:
         new_update = add_updates()
         response = requests.get(
             f"https://api.{config.SETTINGS['api_url']}/api/v3/comic/{new_update[0]}/group/{new_update[1]}"
             f"/chapters?limit=500&offset=0&platform=3",
-            headers=config.API_HEADER, proxies=config.PROXIES)
+            headers=config.API_HEADER,
+            proxies=config.PROXIES,
+        )
         # 记录API访问量
         api_restriction()
         try:
@@ -138,19 +163,31 @@ def updates():
             response.raise_for_status()
         manga_chapter_json = response.json()
         manga_now = int(
-            Prompt.ask(f"当前漫画有{manga_chapter_json['results']['total']}话的内容，请问您目前看到多少话了"))
+            Prompt.ask(
+                f"当前漫画有{manga_chapter_json['results']['total']}话的内容，请问您目前看到多少话了",
+            ),
+        )
         save_updates(new_update[0], new_update[1], new_update[2], manga_now, False)
     else:
         del_manga_int = int(Prompt.ask("请输入想要删除的漫画前面的序号"))
-        save_updates(UPDATE_LIST[del_manga_int - 1]['manga_path_word'],
-                     UPDATE_LIST[del_manga_int - 1]['manga_group_path_word'],
-                     UPDATE_LIST[del_manga_int - 1]['manga_name'], 0, True)
+        save_updates(
+            UPDATE_LIST[del_manga_int - 1]['manga_path_word'],
+            UPDATE_LIST[del_manga_int - 1]['manga_group_path_word'],
+            UPDATE_LIST[del_manga_int - 1]['manga_name'],
+            0,
+            True,
+        )
 
 
 def add_updates():
     search_content = Prompt.ask("您需要搜索添加什么漫画呢")
-    url = "https://api.%s/api/v3/search/comic?format=json&platform=3&q=%s&limit=10&offset={}" % (
-        config.SETTINGS["api_url"], search_content)
+    url = (
+        "https://api.%s/api/v3/search/comic?format=json&platform=3&q=%s&limit=10&offset={}"
+        % (
+            config.SETTINGS["api_url"],
+            search_content,
+        )
+    )
     offset = 0
     current_page_count = 1
     while True:
@@ -166,10 +203,15 @@ def add_updates():
             # 获取用户选择的comic的名称并输出
             print("你选择了：{}".format(data["results"]["list"][index]["name"]))
             # 让用户选择分组
-            manga_group_path_word = manga_group(data["results"]["list"][index]["path_word"])
+            manga_group_path_word = manga_group(
+                data["results"]["list"][index]["path_word"],
+            )
             # 返回两个pathWord与漫画名称
-            return data["results"]["list"][index]["path_word"], manga_group_path_word, data["results"]["list"][index][
-                "name"]
+            return (
+                data["results"]["list"][index]["path_word"],
+                manga_group_path_word,
+                data["results"]["list"][index]["name"],
+            )
 
         except (ValueError, IndexError):
             offset = page_turning(selection, offset, data, current_page_count)
@@ -200,7 +242,13 @@ def update_list():
         print("[{}] {}".format(i + 1, comic["manga_name"]))
 
 
-def save_updates(manga_path_word, manga_group_path_word, manga_name, now_chapter, will_del):
+def save_updates(
+    manga_path_word,
+    manga_group_path_word,
+    manga_name,
+    now_chapter,
+    will_del,
+):
     global UPDATE_LIST
     home_dir = os.path.expanduser("~")
     if not os.path.exists(os.path.join(home_dir, '.copymanga-downloader/')):
@@ -219,10 +267,12 @@ def save_updates(manga_path_word, manga_group_path_word, manga_name, now_chapter
             "manga_name": manga_name,
             "manga_path_word": manga_path_word,
             "manga_group_path_word": manga_group_path_word,
-            "now_chapter": now_chapter
+            "now_chapter": now_chapter,
         }
         UPDATE_LIST.append(new_update)
-        print(f"[yellow]已将{manga_name}添加到自动更新列表中,请使用命令行参数‘--subscribe 1’进行自动更新[/]")
+        print(
+            f"[yellow]已将{manga_name}添加到自动更新列表中,请使用命令行参数‘--subscribe 1’进行自动更新[/]",
+        )
     # 写入update.json文件
     with open(updates_path, "w") as f:
         json.dump(UPDATE_LIST, f)
@@ -255,7 +305,7 @@ def update_download():
             comic['manga_path_word'],
             comic['manga_group_path_word'],
             comic['now_chapter'],
-            ):
+        ):
             chapter_allocation(manga_chapter_json)
 
 
@@ -264,7 +314,9 @@ def update_get_chapter(manga_path_word, manga_group_path_word, now_chapter):
     response = requests.get(
         f"https://api.{config.SETTINGS['api_url']}/api/v3/comic/{manga_path_word}/group/{manga_group_path_word}"
         f"/chapters?limit=500&offset={now_chapter}&platform=3",
-        headers=config.API_HEADER, proxies=config.PROXIES)
+        headers=config.API_HEADER,
+        proxies=config.PROXIES,
+    )
     # 记录API访问量
     api_restriction()
     try:
@@ -277,7 +329,7 @@ def update_get_chapter(manga_path_word, manga_group_path_word, now_chapter):
     return_json = {
         "json": manga_chapter_json,
         "start": -1,
-        "end": -1
+        "end": -1,
     }
     # Todo 支持500+话的漫画(感觉并不太需要)
     if not manga_chapter_json['results']['list']:
@@ -291,8 +343,13 @@ def update_get_chapter(manga_path_word, manga_group_path_word, now_chapter):
 
 # 搜索相关
 
+
 def search_list(url, offset, current_page_count):
-    response = requests.get(url.format(offset), headers=config.API_HEADER, proxies=config.PROXIES)
+    response = requests.get(
+        url.format(offset),
+        headers=config.API_HEADER,
+        proxies=config.PROXIES,
+    )
     # 记录API访问量
     api_restriction()
     # 解析JSON数据
@@ -304,7 +361,9 @@ def search_list(url, offset, current_page_count):
         print("[{}] {}".format(i + 1, comic["name"]))
 
     # 让用户输入数字来选择comic
-    selection = Prompt.ask("请选择一个漫画[italic yellow]（输入Q退出,U为上一页,D为下一页）[/]")
+    selection = Prompt.ask(
+        "请选择一个漫画[italic yellow]（输入Q退出,U为上一页,D为下一页）[/]",
+    )
     return selection, data
 
 
@@ -331,8 +390,13 @@ def page_turning(selection, offset, data, current_page_count):
 
 def search():
     search_content = Prompt.ask("您需要搜索什么漫画呢")
-    url = "https://api.%s/api/v3/search/comic?format=json&platform=3&q=%s&limit=10&offset={}" % (
-        config.SETTINGS["api_url"], search_content)
+    url = (
+        "https://api.%s/api/v3/search/comic?format=json&platform=3&q=%s&limit=10&offset={}"
+        % (
+            config.SETTINGS["api_url"],
+            search_content,
+        )
+    )
     offset = 0
     current_page_count = 1
     while True:
@@ -358,36 +422,54 @@ def search():
 
 # 收藏相关
 
+
 def search_on_collect():
-    url = "https://%s/api/v3/member/collect/comics?limit=12&offset={}&free_type=1&ordering=-datetime_modifier" % (
-        config.SETTINGS["api_url"])
+    url = (
+        "https://%s/api/v3/member/collect/comics?limit=12&offset={}&free_type=1&ordering=-datetime_modifier"
+        % (config.SETTINGS["api_url"])
+    )
     config.API_HEADER['authorization'] = config.SETTINGS['authorization']
     offset = 0
     current_page_count = 1
     retry_count = 0
     while True:
         # 发送GET请求
-        response = requests.get(url.format(offset), headers=config.API_HEADER, proxies=config.PROXIES)
+        response = requests.get(
+            url.format(offset),
+            headers=config.API_HEADER,
+            proxies=config.PROXIES,
+        )
         # 记录API访问量
         api_restriction()
         # 解析JSON数据
         data = response.json()
         if data['code'] == 401:
-            settings_dir = os.path.join(os.path.expanduser("~"), ".copymanga-downloader/settings.json")
+            settings_dir = os.path.join(
+                os.path.expanduser("~"),
+                ".copymanga-downloader/settings.json",
+            )
             if config.SETTINGS["loginPattern"] == "1":
                 print(f"[bold red]请求出现问题！疑似Token问题！[{data['message']}][/]")
-                print(f"[bold red]请删除{settings_dir}来重新设置！(或者也可以自行修改配置文件)[/]")
+                print(
+                    f"[bold red]请删除{settings_dir}来重新设置！(或者也可以自行修改配置文件)[/]",
+                )
                 sys.exit()
             else:
-                res = login(**login_information_builder(config.SETTINGS["username"], config.SETTINGS["password"],
-                                                        config.SETTINGS["api_url"],
-                                                        config.SETTINGS["salt"], config.PROXIES))
+                res = login(
+                    **login_information_builder(
+                        config.SETTINGS["username"],
+                        config.SETTINGS["password"],
+                        config.SETTINGS["api_url"],
+                        config.SETTINGS["salt"],
+                        config.PROXIES,
+                    ),
+                )
                 if res:
                     config.API_HEADER['authorization'] = f"Token {res}"
                     config.SETTINGS["authorization"] = f"Token {res}"
                     save_settings(config.SETTINGS)
                     continue
-                time.sleep(2 ** retry_count)  # 重试时间指数
+                time.sleep(2**retry_count)  # 重试时间指数
                 retry_count += 1
 
         console.rule(f"[bold blue]当前为第{current_page_count}页")
@@ -396,14 +478,18 @@ def search_on_collect():
             print("[{}] {}".format(i + 1, comic['comic']["name"]))
 
         # 让用户输入数字来选择comic
-        selection = Prompt.ask("请选择一个漫画[italic yellow]（输入Q退出,U为上一页,D为下一页）[/]")
+        selection = Prompt.ask(
+            "请选择一个漫画[italic yellow]（输入Q退出,U为上一页,D为下一页）[/]",
+        )
         if selection.upper() == "Q":
             break
         try:
             # 将用户输入的字符串转换为整数
             index = int(selection) - 1
             # 获取用户选择的comic的名称并输出
-            print("你选择了：{}".format(data["results"]["list"][index]['comic']["name"]))
+            print(
+                "你选择了：{}".format(data["results"]["list"][index]['comic']["name"]),
+            )
             # 返回pathWord
             return data["results"]["list"][index]['comic']["path_word"]
 
@@ -417,22 +503,35 @@ def collect_expect():
     url = f"https://api.{config.SETTINGS['api_url']}/api/v3/member/collect/comics"
     params = {
         "limit": 12,
-        "offset": 0
+        "offset": 0,
     }
     data = []
-    want_to = int(Prompt.ask(f"请问是输出json格式还是csv格式？"
-                             f"[italic yellow](0:json,1:csv)[/]",
-                             choices=["0", "1"], default="1"))
+    want_to = int(
+        Prompt.ask(
+            f"请问是输出json格式还是csv格式？" f"[italic yellow](0:json,1:csv)[/]",
+            choices=["0", "1"],
+            default="1",
+        ),
+    )
     while True:
         config.API_HEADER['authorization'] = config.SETTINGS['authorization']
         res = requests.get(url, params=params, headers=config.API_HEADER)
         res_json = json.loads(res.text)
         if res_json["code"] != 200:
-            print(f"[bold red]无法获取到相关信息，请检查相关设置。Error:{res_json['message']}")
+            print(
+                f"[bold red]无法获取到相关信息，请检查相关设置。Error:{res_json['message']}",
+            )
             return
         for item in res_json['results']['list']:
             comic = item['comic']
-            data.append([comic['name'], comic['path_word'], comic['datetime_updated'], comic['last_chapter_name']])
+            data.append(
+                [
+                    comic['name'],
+                    comic['path_word'],
+                    comic['datetime_updated'],
+                    comic['last_chapter_name'],
+                ],
+            )
 
         if len(data) >= res_json['results']['total']:
             break
@@ -453,9 +552,13 @@ def collect_expect():
 
 # 漫画详细相关
 
+
 def manga_group(manga_path_word):
-    response = requests.get(f"https://api.{config.SETTINGS['api_url']}/api/v3/comic2/{manga_path_word}",
-                            headers=config.API_HEADER, proxies=config.PROXIES)
+    response = requests.get(
+        f"https://api.{config.SETTINGS['api_url']}/api/v3/comic2/{manga_path_word}",
+        headers=config.API_HEADER,
+        proxies=config.PROXIES,
+    )
     # 记录API访问量
     api_restriction()
     try:
@@ -471,9 +574,13 @@ def manga_group(manga_path_word):
     manga_group_path_word_list = []
     # 获取group值并强转list
     for i, manga_group_list in enumerate(manga_group_json["results"]["groups"]):
-        print(f"{i + 1}->{manga_group_json['results']['groups'][manga_group_list]['name']}")
+        print(
+            f"{i + 1}->{manga_group_json['results']['groups'][manga_group_list]['name']}",
+        )
         # 将分组的path_word添加到数组中
-        manga_group_path_word_list.append(manga_group_json['results']['groups'][manga_group_list]['path_word'])
+        manga_group_path_word_list.append(
+            manga_group_json['results']['groups'][manga_group_list]['path_word'],
+        )
     choice = IntPrompt.ask("请输入要下载的分组前面的数字")
     return manga_group_path_word_list[choice - 1]
 
@@ -482,7 +589,9 @@ def manga_chapter(manga_path_word, group_path_word):
     response = requests.get(
         f"https://api.{config.SETTINGS['api_url']}/api/v3/comic/{manga_path_word}/group/{group_path_word}"
         f"/chapters?limit=500&offset=0&platform=3",
-        headers=config.API_HEADER, proxies=config.PROXIES)
+        headers=config.API_HEADER,
+        proxies=config.PROXIES,
+    )
     # 记录API访问量
     api_restriction()
     try:
@@ -496,7 +605,7 @@ def manga_chapter(manga_path_word, group_path_word):
     return_json = {
         "json": manga_chapter_json,
         "start": None,
-        "end": None
+        "end": None,
     }
     # Todo 支持500+话的漫画(感觉并不太需要)
     if manga_chapter_json['results']['total'] > 500:
@@ -508,27 +617,39 @@ def manga_chapter(manga_path_word, group_path_word):
         return_json["start"] = int(ARGS.MangaStart) - 1
         return_json["end"] = int(ARGS.MangaEnd)
         return return_json
-    want_to = int(Prompt.ask(f"获取到{manga_chapter_json['results']['total']}话内容，请问如何下载?"
-                             f"[italic yellow](0:全本下载,1:范围下载,2:单话下载)[/]",
-                             choices=["0", "1", "2"], default="0"))
+    want_to = int(
+        Prompt.ask(
+            f"获取到{manga_chapter_json['results']['total']}话内容，请问如何下载?"
+            f"[italic yellow](0:全本下载,1:范围下载,2:单话下载)[/]",
+            choices=["0", "1", "2"],
+            default="0",
+        ),
+    )
     if want_to == 0:
         return_json["start"] = -1
         return_json["end"] = -1
         return return_json
     print(
-        "[italic yellow]请注意！此话数包含了其他比如特别篇的话数，比如”第一话，特别篇，第二话“，那么第二话就是3，而不2[/]")
+        "[italic yellow]请注意！此话数包含了其他比如特别篇的话数，比如”第一话，特别篇，第二话“，那么第二话就是3，而不2[/]",
+    )
     if want_to == 1:
         return_json["start"] = int(Prompt.ask("请输入开始下载的话数")) - 1
-        print(f"[italic blue]您选择从[yellow]{manga_chapter_json['results']['list'][return_json['start']]['name']}"
-              f"[/yellow]开始🔻[/]")
+        print(
+            f"[italic blue]您选择从[yellow]{manga_chapter_json['results']['list'][return_json['start']]['name']}"
+            f"[/yellow]开始🔻[/]",
+        )
         return_json["end"] = int(Prompt.ask("请输入结束下载的话数"))
-        print(f"[italic blue]您选择在[yellow]{manga_chapter_json['results']['list'][return_json['end']]['name']}"
-              f"[/yellow]结束🔻[/]")
+        print(
+            f"[italic blue]您选择在[yellow]{manga_chapter_json['results']['list'][return_json['end']]['name']}"
+            f"[/yellow]结束🔻[/]",
+        )
         return return_json
     if want_to == 2:
         return_json["start"] = int(Prompt.ask("请输入需要下载的话数")) - 1
         return_json["end"] = return_json["start"]
-        print(f"[italic blue]您选择下载[yellow]{manga_chapter_json['results']['list'][return_json['end']]['name']}[/]")
+        print(
+            f"[italic blue]您选择下载[yellow]{manga_chapter_json['results']['list'][return_json['end']]['name']}[/]",
+        )
         return return_json
 
 
@@ -537,16 +658,21 @@ def chapter_allocation(manga_chapter_json):
         manga_chapter_list = manga_chapter_json['json']['results']['list']
     elif manga_chapter_json['start'] == manga_chapter_json['end']:
         # 转换为一个只包含一个元素的数组
-        manga_chapter_list = [manga_chapter_json['json']['results']['list'][manga_chapter_json['start']]]
+        manga_chapter_list = [
+            manga_chapter_json['json']['results']['list'][manga_chapter_json['start']],
+        ]
     else:
         manga_chapter_list = manga_chapter_json['json']['results']['list'][
-                             manga_chapter_json['start']:manga_chapter_json['end']]
+            manga_chapter_json['start'] : manga_chapter_json['end']
+        ]
     # 准备分配章节下载
     for manga_chapter_info in manga_chapter_list:
         response = requests.get(
             f"https://api.{config.SETTINGS['api_url']}/api/v3/comic/{manga_chapter_info['comic_path_word']}"
             f"/chapter2/{manga_chapter_info['uuid']}?platform=3",
-            headers=config.API_HEADER, proxies=config.PROXIES)
+            headers=config.API_HEADER,
+            proxies=config.PROXIES,
+        )
 
         # 记录API访问量
         api_restriction()
@@ -586,7 +712,7 @@ def chapter_allocation(manga_chapter_json):
             ):
                 url, filename = the_queue.get()
                 download(url, filename)
-                time.sleep(0.5) # 添加一点延迟，错峰请求
+                time.sleep(0.5)  # 添加一点延迟，错峰请求
                 the_queue.task_done()
 
         idx_id = int(manga_chapter_info_json['results']['chapter']['index']) + 1
@@ -594,7 +720,10 @@ def chapter_allocation(manga_chapter_json):
 
         for i in range(num_images):
             url = img_url_contents[i]['url']
-            file_name = os.path.join(chapter_path, f"{str(img_words[i] + 1).zfill(3)}.jpg")
+            file_name = os.path.join(
+                chapter_path,
+                f"{str(img_words[i] + 1).zfill(3)}.jpg",
+            )
             download_queue.put((url, file_name))
 
         t = threading.Thread(
@@ -606,25 +735,38 @@ def chapter_allocation(manga_chapter_json):
 
         # 实施添加下载进度
         if ARGS and ARGS.subscribe == "1":
-            save_new_update(manga_chapter_info_json['results']['chapter']['comic_path_word'],
-                            manga_chapter_info_json['results']['chapter']['index'] + 1)
+            save_new_update(
+                manga_chapter_info_json['results']['chapter']['comic_path_word'],
+                manga_chapter_info_json['results']['chapter']['index'] + 1,
+            )
 
-        epub_transformerhelper(download_path, manga_name, chapter_name)
-        console.status(f"[bold green][:white_check_mark:][{manga_name}]{chapter_name}🔻🆗[/]")
+        console.status(
+            f"[bold green][:white_check_mark:][{manga_name}]{chapter_name}🔻🆗[/]",
+        )
+
+        # epub_transformerhelper(download_path, manga_name, chapter_name)
         if config.SETTINGS['CBZ']:
-            with console.status(f"[bold yellow]正在保存CBZ存档:[{manga_name}]{chapter_name}[/]"):
+            with console.status(
+                f"[bold yellow]正在保存CBZ存档:[{manga_name}]{chapter_name}[/]",
+            ):
+                # comic_path = manga_chapter_info_json['results']['chapter']['comic_path_word']
                 create_cbz(
-                    str(int(manga_chapter_info_json['results']['chapter']['index']) + 1),
+                    str(
+                        int(manga_chapter_info_json['results']['chapter']['index']) + 1,
+                    ),
                     chapter_name,
                     manga_name,
                     f"{manga_name}/{chapter_name}/",
                     config.SETTINGS['cbz_path'],
                     manga_name,
                 )
-            console.status(f"[bold green][:white_check_mark:]已将[{manga_name}]{chapter_name}保存为CBZ存档[/]")
+            console.status(
+                f"[bold green][:white_check_mark:]已将[{manga_name}]{chapter_name}保存为CBZ存档[/]",
+            )
 
 
 # 下载相关
+
 
 def download(url, filename, overwrite=False):
     # 判断是否已经下载
@@ -644,13 +786,18 @@ def download(url, filename, overwrite=False):
         # 重新尝试一次
         try:
             time.sleep(3)
-            response = requests.get(url, headers=config.API_HEADER, proxies=config.PROXIES)
+            response = requests.get(
+                url,
+                headers=config.API_HEADER,
+                proxies=config.PROXIES,
+            )
             with open(filename, "wb") as f:
                 f.write(response.content)
         except Exception as e:
 
             print(
-                f"[bold red]无法🔻{filename}，似乎是CopyManga暂时屏蔽了您的IP，请稍后手动下载对应章节(章节话数为每话下载输出的索引ID),ErrMsg:{e}[/]")
+                f"[bold red]无法🔻{filename}，似乎是CopyManga暂时屏蔽了您的IP，请稍后手动下载对应章节(章节话数为每话下载输出的索引ID),ErrMsg:{e}[/]",
+            )
 
 
 def main():
@@ -663,7 +810,8 @@ def main():
     if ARGS:
         if ARGS.subscribe == "1":
             print(
-                "[bold purple]请注意！此模式下可能会导致部分img下载失败，如果遇见报错还请您自行删除更新列表然后重新添加后运行，此程序会重新下载并跳过已下载内容[/]")
+                "[bold purple]请注意！此模式下可能会导致部分img下载失败，如果遇见报错还请您自行删除更新列表然后重新添加后运行，此程序会重新下载并跳过已下载内容[/]",
+            )
             update_download()
             sys.exit()
         if ARGS.MangaPath and ARGS.MangaEnd and ARGS.MangaStart:
