@@ -10,21 +10,23 @@ from cbz.page import PageInfo
 import config
 
 
-def create_cbz(index, title, manga_name, save_dir, cbz_dir, path_word):
-    dir_path = Path(config.SETTINGS['download_path'])
+def create_cbz(*args, **kwargs):
+    # print(f"{args=}")
+    index, title, manga_name, save_dir, cbz_dir, path_word = args
+    dir_path = config.SETTINGS['download_path']
     save_dir_path = os.path.join(dir_path, save_dir)
-    paths = save_dir_path.iterdir()
 
     pages = []
-    for i, path in enumerate(paths):
-        page_type = (
-            PageType.FRONT_COVER
-            if i == 0
-            else (PageType.BACK_COVER if i == len(list(paths)) - 1 else PageType.STORY)
-        )
+    for path in Path(save_dir_path).iterdir():
+        # page_type = (
+        #     PageType.FRONT_COVER
+        #     if i == 0
+        #     else (PageType.BACK_COVER if i == len(list(paths)) - 1 else PageType.STORY)
+        # )
+        page_type = PageType.FRONT_COVER if len(pages) == 0 else PageType.STORY
         pages.append(PageInfo.load(path=path, type=page_type))
 
-    print(f"{pages=}")
+    # print(f"{pages=}")
     manga_title = f"{manga_name}-{title}"
     # Create a ComicInfo object with your comic's metadata
     comic = ComicInfo.from_pages(
