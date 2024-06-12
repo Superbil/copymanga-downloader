@@ -245,10 +245,9 @@ def save_new_update(manga_path_word, now_chapter):
 def update_download():
     load_settings()
     if not load_updates():
-        print("[bold red]update.json并没有内容，请使用正常模式添加！[/]")
+        console.status("[red]update.json并没有内容，请使用正常模式添加！[/]")
         sys.exit()
     for comic in UPDATE_LIST:
-        print(f"[yellow]正在准备下载{comic['manga_name']}[/]")
         manga_chapter_json = update_get_chapter(comic['manga_path_word'],
                                                 comic['manga_group_path_word'],
                                                 comic['now_chapter'])
@@ -608,7 +607,7 @@ def chapter_allocation(manga_chapter_json):
 def download(url, filename, overwrite=False):
     # 判断是否已经下载
     if not overwrite and os.path.exists(filename):
-        print(f"[blue]您已经下载了{filename}，跳过下载[/]")
+        # print(f"[blue]您已经下载了{filename}，跳过下载[/]")
         return
     img_api_restriction()
     if config.SETTINGS['HC'] == "1":
