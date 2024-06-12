@@ -14,7 +14,7 @@ from rich.progress import track
 from rich.prompt import Prompt, IntPrompt
 
 import config
-from cbz import create_cbz
+from my_cbz import create_cbz
 from epub import epub_transformerhelper
 from function import img_api_restriction, api_restriction
 from login import login, login_information_builder

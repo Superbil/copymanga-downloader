@@ -31,7 +31,7 @@ def create_cbz(*args, **kwargs):
     # Create a ComicInfo object with your comic's metadata
     comic = ComicInfo.from_pages(
         pages=pages,
-        title=manga_name,
+        title=manga_title,
         series=manga_name,
         number=index,
         language_iso='zh',
