@@ -6,9 +6,10 @@ import string
 import sys
 import threading
 import time
+import queue
 
 import requests as requests
-from rich import print as print
+from rich import print
 from rich.console import Console
 from rich.progress import track
 from rich.prompt import Prompt, IntPrompt
@@ -86,7 +87,7 @@ def command_mode():
         config.SETTINGS['download_path'] = ARGS.Output
     manga_chapter_json = manga_chapter(ARGS.MangaPath, ARGS.MangaGroup)
     chapter_allocation(manga_chapter_json)
-    print(f"[bold green][:white_check_mark: ]漫画已经下载完成！[/]")
+    print(f"[bold green][:white_check_mark: ]漫画已经🔻完成！[/]")
 
 
 # 正常模式
@@ -247,11 +248,14 @@ def update_download():
     if not load_updates():
         console.status("[red]update.json并没有内容，请使用正常模式添加！[/]")
         sys.exit()
+
     for comic in UPDATE_LIST:
-        manga_chapter_json = update_get_chapter(comic['manga_path_word'],
-                                                comic['manga_group_path_word'],
-                                                comic['now_chapter'])
-        if manga_chapter_json != 0:
+        console.status(f"[yellow]正在准备🔻{comic['manga_name']}[/]")
+        if manga_chapter_json := update_get_chapter(
+            comic['manga_path_word'],
+            comic['manga_group_path_word'],
+            comic['now_chapter'],
+            ):
             chapter_allocation(manga_chapter_json)
 
 
@@ -516,10 +520,10 @@ def manga_chapter(manga_path_word, group_path_word):
     if want_to == 1:
         return_json["start"] = int(Prompt.ask("请输入开始下载的话数")) - 1
         print(f"[italic blue]您选择从[yellow]{manga_chapter_json['results']['list'][return_json['start']]['name']}"
-              f"[/yellow]开始下载[/]")
+              f"[/yellow]开始🔻[/]")
         return_json["end"] = int(Prompt.ask("请输入结束下载的话数"))
         print(f"[italic blue]您选择在[yellow]{manga_chapter_json['results']['list'][return_json['end']]['name']}"
-              f"[/yellow]结束下载[/]")
+              f"[/yellow]结束🔻[/]")
         return return_json
     if want_to == 2:
         return_json["start"] = int(Prompt.ask("请输入需要下载的话数")) - 1
@@ -543,20 +547,23 @@ def chapter_allocation(manga_chapter_json):
             f"https://api.{config.SETTINGS['api_url']}/api/v3/comic/{manga_chapter_info['comic_path_word']}"
             f"/chapter2/{manga_chapter_info['uuid']}?platform=3",
             headers=config.API_HEADER, proxies=config.PROXIES)
+
         # 记录API访问量
         api_restriction()
+
         try:
             response.raise_for_status()
-        except Exception as e:
+        except Exception:
             time.sleep(5)
             response.raise_for_status()
+
         manga_chapter_info_json = response.json()
 
         img_url_contents = manga_chapter_info_json['results']['chapter']['contents']
         img_words = manga_chapter_info_json['results']['chapter']['words']
-        manga_name = manga_chapter_info_json['results']['comic']['name']
+        raw_manga_name = manga_chapter_info_json['results']['comic']['name']
         special_chars = string.punctuation + ' '
-        manga_name = ''.join(c for c in manga_name if c not in special_chars)
+        manga_name = ''.join(c for c in raw_manga_name if c not in special_chars)
         num_images = len(img_url_contents)
         download_path = config.SETTINGS['download_path']
         chapter_name = manga_chapter_info_json['results']['chapter']['name']
@@ -564,42 +571,57 @@ def chapter_allocation(manga_chapter_json):
 
         if not os.path.exists(f"{download_path}/{manga_name}/"):
             os.mkdir(f"{download_path}/{manga_name}/")
-        # 创建多线程
-        threads = []
-        for i in track(range(num_images), description=f"[bold yellow]正在下载:[{manga_name}]{chapter_name}(索引ID:"
-                                                      f"{int(manga_chapter_info_json['results']['chapter']['index']) + 1})[/]"):
+
+        chapter_path = f"{download_path}/{manga_name}/{chapter_name}/"
+        if not os.path.exists(chapter_path):
+            os.mkdir(chapter_path)
+
+        download_queue = queue.Queue()
+
+        def thread_worker(the_queue, num_images, track_desc):
+            for i in track(
+                range(num_images),
+                total=num_images,
+                description=track_desc,
+            ):
+                url, filename = the_queue.get()
+                download(url, filename)
+                time.sleep(0.5) # 添加一点延迟，错峰请求
+                the_queue.task_done()
+
+        idx_id = int(manga_chapter_info_json['results']['chapter']['index']) + 1
+        track_desc = f"[yellow]🔻[{manga_name}]{chapter_name}(idx: {idx_id})[/]"
+
+        for i in range(num_images):
             url = img_url_contents[i]['url']
-            # 检查章节文件夹是否存在
-            if not os.path.exists(f"{download_path}/{manga_name}/{chapter_name}/"):
-                os.mkdir(f"{download_path}/{manga_name}/{chapter_name}/")
-            # 组成下载路径
-            filename = f"{download_path}/{manga_name}/{chapter_name}/{str(img_words[i] + 1).zfill(3)}.jpg"
-            t = threading.Thread(target=download, args=(url, filename))
-            # 开始线程
-            threads.append(t)
-            # 限制线程数量(十分不建议修改，不然很可能会被禁止访问)
-            if len(threads) == 4 or i == num_images - 1:
-                for t in threads:
-                    # 添加一点延迟，错峰请求
-                    time.sleep(0.5)
-                    t.start()
-                for t in threads:
-                    time.sleep(0.5)
-                    t.join()
-                threads.clear()
+            file_name = os.path.join(chapter_path, f"{str(img_words[i] + 1).zfill(3)}.jpg")
+            download_queue.put((url, file_name))
+
+        t = threading.Thread(
+            target=thread_worker,
+            args=(download_queue, num_images, track_desc),
+        )
+        t.start()
+        t.join()
+
         # 实施添加下载进度
         if ARGS and ARGS.subscribe == "1":
             save_new_update(manga_chapter_info_json['results']['chapter']['comic_path_word'],
                             manga_chapter_info_json['results']['chapter']['index'] + 1)
 
-        print(f"[bold green][:white_check_mark:][{manga_name}]{chapter_name}下载完成！[/]")
         epub_transformerhelper(download_path, manga_name, chapter_name)
+        console.status(f"[bold green][:white_check_mark:][{manga_name}]{chapter_name}🔻🆗[/]")
         if config.SETTINGS['CBZ']:
             with console.status(f"[bold yellow]正在保存CBZ存档:[{manga_name}]{chapter_name}[/]"):
-                create_cbz(str(int(manga_chapter_info_json['results']['chapter']['index']) + 1), chapter_name,
-                           manga_name, f"{manga_name}/{chapter_name}/", config.SETTINGS['cbz_path'],
-                           manga_chapter_info_json['results']['chapter']['comic_path_word'])
-            print(f"[bold green][:white_check_mark:]已将[{manga_name}]{chapter_name}保存为CBZ存档[/]")
+                create_cbz(
+                    str(int(manga_chapter_info_json['results']['chapter']['index']) + 1),
+                    chapter_name,
+                    manga_name,
+                    f"{manga_name}/{chapter_name}/",
+                    config.SETTINGS['cbz_path'],
+                    manga_name,
+                )
+            console.status(f"[bold green][:white_check_mark:]已将[{manga_name}]{chapter_name}保存为CBZ存档[/]")
 
 
 # 下载相关
@@ -612,22 +634,23 @@ def download(url, filename, overwrite=False):
     img_api_restriction()
     if config.SETTINGS['HC'] == "1":
         url = url.replace("c800x.jpg", "c1500x.jpg")
-    try:
 
+    try:
         response = requests.get(url, headers=config.API_HEADER, proxies=config.PROXIES)
         with open(filename, "wb") as f:
             f.write(response.content)
+
     except Exception as e:
         # 重新尝试一次
         try:
-            time.sleep(5)
+            time.sleep(3)
             response = requests.get(url, headers=config.API_HEADER, proxies=config.PROXIES)
             with open(filename, "wb") as f:
                 f.write(response.content)
         except Exception as e:
 
             print(
-                f"[bold red]无法下载{filename}，似乎是CopyManga暂时屏蔽了您的IP，请稍后手动下载对应章节(章节话数为每话下载输出的索引ID),ErrMsg:{e}[/]")
+                f"[bold red]无法🔻{filename}，似乎是CopyManga暂时屏蔽了您的IP，请稍后手动下载对应章节(章节话数为每话下载输出的索引ID),ErrMsg:{e}[/]")
 
 
 def main():
