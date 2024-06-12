@@ -655,4 +655,11 @@ def main():
 
 
 if __name__ == '__main__':
-    main()
+    try:
+        main()
+    # Ctrl+C
+    except KeyboardInterrupt:
+        print('Received keyboard interrupt')
+        sys.exit()
+    except SystemExit:
+        sys.exit()
