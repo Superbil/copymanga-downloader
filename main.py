@@ -301,15 +301,16 @@ def update_download():
 
     for comic in UPDATE_LIST:
         console.status(f"[yellow]正在准备🔻{comic['manga_name']}[/]")
-        if manga_chapter_json := update_get_chapter(
-            comic['manga_path_word'],
-            comic['manga_group_path_word'],
-            comic['now_chapter'],
-        ):
+        if manga_chapter_json := update_get_chapter(comic):
             chapter_allocation(manga_chapter_json)
 
 
-def update_get_chapter(manga_path_word, manga_group_path_word, now_chapter):
+
+def update_get_chapter(comic):
+    manga_name = comic['manga_name']
+    manga_path_word = comic['manga_path_word']
+    manga_group_path_word = comic['manga_group_path_word']
+    now_chapter = comic['now_chapter']
     # 因为将偏移设置到最后下载的章节，所以可以直接下载全本
     response = requests.get(
         f"https://api.{config.SETTINGS['api_url']}/api/v3/comic/{manga_path_word}/group/{manga_group_path_word}"
@@ -319,11 +320,13 @@ def update_get_chapter(manga_path_word, manga_group_path_word, now_chapter):
     )
     # 记录API访问量
     api_restriction()
+
     try:
         response.raise_for_status()
     except Exception as e:
         time.sleep(5)
         response.raise_for_status()
+
     manga_chapter_json = response.json()
     # Todo 创建传输的json,并且之后会将此json保存为temp.json修复这个问题https://github.com/misaka10843/copymanga-downloader/issues/35
     return_json = {
@@ -331,13 +334,34 @@ def update_get_chapter(manga_path_word, manga_group_path_word, now_chapter):
         "start": -1,
         "end": -1,
     }
-    # Todo 支持500+话的漫画(感觉并不太需要)
+    # TODO 支持500+话的漫画(感觉并不太需要)
+    # console.log(manga_chapter_json)
+    # {
+    #     'index': 184,
+    #     'uuid': 'b443b5ec-f192-11ee-9105-69ffca9e099a',
+    #     'count': 192,
+    #     'ordered': 1610,
+    #     'size': 16,
+    #     'name': '第161话',
+    #     'comic_id': '259e688c-f526-11e8-b542-00163e0ca5bd',
+    #     'comic_path_word': 'dianjuren',
+    #     'group_id': None,
+    #     'group_path_word': 'default',
+    #     'type': 1,
+    #     'img_type': 1,
+    #     'news': 'success',
+    #     'datetime_created': '2024-04-03',
+    #     'prev': '698dc3e6-ecae-11ee-8daa-55b00c27fb36',
+    #     'next': '89ef1d56-f730-11ee-932f-69ffca9e099a'
+    # }
     if not manga_chapter_json['results']['list']:
-        print(f"[bold blue]此漫画并未有新的章节，我们将跳过此漫画[/]")
-        return 0
+        print(f"[yellow]{manga_name}[/][bold blue]此漫画并未有新的章节，我们将跳过此漫画[/]")
+        return None
+
     if manga_chapter_json['results']['total'] > 500:
         print("[bold red]我们暂时不支持下载到500话以上，还请您去Github中创建Issue！[/]")
-        sys.exit()
+        return None
+
     return return_json
 
 
