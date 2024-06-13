@@ -711,8 +711,9 @@ def chapter_allocation(manga_chapter_json):
                 description=track_desc,
             ):
                 url, filename = the_queue.get()
-                download(url, filename)
-                time.sleep(0.5)  # 添加一点延迟，错峰请求
+                if file_download := download(url, filename):
+                    if not file_download:
+                        time.sleep(0.5)  # 添加一点延迟，错峰请求
                 the_queue.task_done()
 
         idx_id = int(manga_chapter_info_json['results']['chapter']['index']) + 1
@@ -772,17 +773,17 @@ def download(url, filename, overwrite=False):
     # 判断是否已经下载
     if not overwrite and os.path.exists(filename):
         # print(f"[blue]您已经下载了{filename}，跳过下载[/]")
-        return
+        return True
+
     img_api_restriction()
+
     if config.SETTINGS['HC'] == "1":
         url = url.replace("c800x.jpg", "c1500x.jpg")
 
+    response = None
     try:
         response = requests.get(url, headers=config.API_HEADER, proxies=config.PROXIES)
-        with open(filename, "wb") as f:
-            f.write(response.content)
-
-    except Exception as e:
+    except Exception:
         # 重新尝试一次
         try:
             time.sleep(3)
@@ -791,13 +792,18 @@ def download(url, filename, overwrite=False):
                 headers=config.API_HEADER,
                 proxies=config.PROXIES,
             )
-            with open(filename, "wb") as f:
-                f.write(response.content)
         except Exception as e:
-
             print(
                 f"[bold red]无法🔻{filename}，似乎是CopyManga暂时屏蔽了您的IP，请稍后手动下载对应章节(章节话数为每话下载输出的索引ID),ErrMsg:{e}[/]",
             )
+            return False
+    finally:
+        if response:
+            with open(filename, "wb") as f:
+                f.write(response.content)
+            return True
+
+    return False
 
 
 def main():
