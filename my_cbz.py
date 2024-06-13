@@ -17,7 +17,10 @@ def create_cbz(*args, **kwargs):
     save_dir_path = os.path.join(dir_path, save_dir)
 
     pages = []
-    for path in Path(save_dir_path).iterdir():
+
+    for path in sorted(
+        Path(save_dir_path).glob('*.jpg'),
+    ):
         # page_type = (
         #     PageType.FRONT_COVER
         #     if i == 0
