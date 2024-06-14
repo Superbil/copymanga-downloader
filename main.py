@@ -7,6 +7,7 @@ import string
 import sys
 import threading
 import time
+import tomlkit
 
 import requests as requests
 from rich import print
@@ -221,19 +222,22 @@ def add_updates():
 
 def load_updates():
     global UPDATE_LIST
+    update_filename = "update.toml"
     # 获取用户目录的路径
     home_dir = os.path.expanduser("~")
-    updates_path = os.path.join(home_dir, ".copymanga-downloader/update.json")
+    updates_path = os.path.join(home_dir, f".copymanga-downloader/{update_filename}")
     # 检查是否有文件
     if not os.path.exists(updates_path):
-        print("[yellow]update.json文件不存在,请添加需要更新的漫画[/]")
+        print(f"[yellow]{update_filename}文件不存在,请添加需要更新的漫画[/]")
         return False
-    # 读取json配置文件
-    with open(updates_path, 'r') as f:
-        UPDATE_LIST = json.load(f)
-    if len(UPDATE_LIST) <= 0:
-        print("[yellow]update.json文件为空,请添加需要更新的漫画[/]")
+
+    with open(updates_path, 'r') as fp:
+        UPDATE_LIST = tomlkit.load(fp)
+
+    if len(UPDATE_LIST['manga']) <= 0:
+        print(f"[yellow]{update_filename}文件为空,请添加需要更新的漫画[/]")
         return False
+
     return True
 
 
@@ -250,13 +254,15 @@ def save_updates(
     will_del,
 ):
     global UPDATE_LIST
+    update_filename = "update.toml"
+
     home_dir = os.path.expanduser("~")
     if not os.path.exists(os.path.join(home_dir, '.copymanga-downloader/')):
         os.mkdir(os.path.join(home_dir, '.copymanga-downloader/'))
-    updates_path = os.path.join(home_dir, ".copymanga-downloader/update.json")
+    updates_path = os.path.join(home_dir, f".copymanga-downloader/{update_filename}")
     # 是否删除漫画
     if will_del:
-        for i, item in enumerate(UPDATE_LIST):
+        for i, item in enumerate(UPDATE_LIST['manga']):
             if item.get('manga_name') == manga_name:
                 del UPDATE_LIST[i]
                 break
@@ -265,55 +271,57 @@ def save_updates(
         # 将新的漫画添加到LIST中
         new_update = {
             "manga_name": manga_name,
-            "manga_path_word": manga_path_word,
             "manga_group_path_word": manga_group_path_word,
             "now_chapter": now_chapter,
         }
-        UPDATE_LIST.append(new_update)
+        UPDATE_LIST['manga'][manga_path_word] = new_update
+
         print(
             f"[yellow]已将{manga_name}添加到自动更新列表中,请使用命令行参数‘--subscribe 1’进行自动更新[/]",
         )
-    # 写入update.json文件
-    with open(updates_path, "w") as f:
-        json.dump(UPDATE_LIST, f)
+
+    with open(updates_path, 'w') as fp:
+        tomlkit.dump(UPDATE_LIST, fp)
 
 
 # 判断是否已经有了，此函数是为了追踪用户下载到哪一话
 def save_new_update(manga_path_word, now_chapter):
     global UPDATE_LIST
+    update_filename = "update.toml"
+
     home_dir = os.path.expanduser("~")
     if not os.path.exists(os.path.join(home_dir, '.copymanga-downloader/')):
         os.mkdir(os.path.join(home_dir, '.copymanga-downloader/'))
-    updates_path = os.path.join(home_dir, ".copymanga-downloader/update.json")
-    for item in UPDATE_LIST:
-        if item['manga_path_word'] == manga_path_word:
-            item['now_chapter'] = now_chapter
-            with open(updates_path, "w") as f:
-                json.dump(UPDATE_LIST, f)
-            return
+    updates_path = os.path.join(home_dir, f".copymanga-downloader/{update_filename}")
+
+    UPDATE_LIST['manga'][manga_path_word]['now_chapter'] = now_chapter
+
+    with open(updates_path, 'w') as fp:
+        tomlkit.dump(UPDATE_LIST, fp)
 
 
 def update_download():
     load_settings()
+    update_filename = "update.toml"
     if not load_updates():
-        console.status("[red]update.json并没有内容，请使用正常模式添加！[/]")
+        console.status(f"[red]{update_filename}并没有内容，请使用正常模式添加！[/]")
         sys.exit()
 
-    for comic in UPDATE_LIST:
+    for comic_key, comic in UPDATE_LIST['manga'].items():
         console.status(f"[yellow]正在准备🔻{comic['manga_name']}[/]")
-        if manga_chapter_json := update_get_chapter(comic):
-            chapter_allocation(manga_chapter_json)
+        if manga_chapter := update_get_chapter(comic_key, comic):
+            chapter_allocation(comic_key, manga_chapter)
+
+        #break # Debug only on one
 
 
-
-def update_get_chapter(comic):
+def update_get_chapter(manga_key, comic):
     manga_name = comic['manga_name']
-    manga_path_word = comic['manga_path_word']
     manga_group_path_word = comic['manga_group_path_word']
     now_chapter = comic['now_chapter']
     # 因为将偏移设置到最后下载的章节，所以可以直接下载全本
     response = requests.get(
-        f"https://api.{config.SETTINGS['api_url']}/api/v3/comic/{manga_path_word}/group/{manga_group_path_word}"
+        f"https://api.{config.SETTINGS['api_url']}/api/v3/comic/{manga_key}/group/{manga_group_path_word}"
         f"/chapters?limit=500&offset={now_chapter}&platform=3",
         headers=config.API_HEADER,
         proxies=config.PROXIES,
@@ -677,7 +685,7 @@ def manga_chapter(manga_path_word, group_path_word):
         return return_json
 
 
-def chapter_allocation(manga_chapter_json):
+def chapter_allocation(manga_key, manga_chapter_json):
     if manga_chapter_json['start'] < 0:
         manga_chapter_list = manga_chapter_json['json']['results']['list']
     elif manga_chapter_json['start'] == manga_chapter_json['end']:
