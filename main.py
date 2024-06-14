@@ -726,6 +726,26 @@ def chapter_allocation(manga_chapter_json):
         if not os.path.exists(chapter_path):
             os.mkdir(chapter_path)
 
+        def _create_cbz():
+            if config.SETTINGS['CBZ']:
+                with console.status(
+                        f"[bold yellow]正在保存CBZ存档:[{manga_name}]{chapter_name}[/]",
+                ):
+                    # comic_path = manga_chapter_info_json['results']['chapter']['comic_path_word']
+                    create_cbz(
+                        str(
+                            int(manga_chapter_info_json['results']['chapter']['index']) + 1,
+                        ),
+                        chapter_name,
+                        manga_name,
+                        f"{manga_name}/{chapter_name}/",
+                        config.SETTINGS['cbz_path'],
+                        manga_name,
+                    )
+                console.status(
+                    f"[bold green][:white_check_mark:]已将[{manga_name}]{chapter_name}保存为CBZ存档[/]",
+                )
+
         download_queue = queue.Queue()
 
         def thread_worker(the_queue, num_images, track_desc):
@@ -738,6 +758,7 @@ def chapter_allocation(manga_chapter_json):
                 if file_download := download(url, filename):
                     if not file_download:
                         time.sleep(0.5)  # 添加一点延迟，错峰请求
+                _create_cbz()
                 the_queue.task_done()
 
         idx_id = int(manga_chapter_info_json['results']['chapter']['index']) + 1
@@ -770,24 +791,7 @@ def chapter_allocation(manga_chapter_json):
         )
 
         # epub_transformerhelper(download_path, manga_name, chapter_name)
-        if config.SETTINGS['CBZ']:
-            with console.status(
-                f"[bold yellow]正在保存CBZ存档:[{manga_name}]{chapter_name}[/]",
-            ):
-                # comic_path = manga_chapter_info_json['results']['chapter']['comic_path_word']
-                create_cbz(
-                    str(
-                        int(manga_chapter_info_json['results']['chapter']['index']) + 1,
-                    ),
-                    chapter_name,
-                    manga_name,
-                    f"{manga_name}/{chapter_name}/",
-                    config.SETTINGS['cbz_path'],
-                    manga_name,
-                )
-            console.status(
-                f"[bold green][:white_check_mark:]已将[{manga_name}]{chapter_name}保存为CBZ存档[/]",
-            )
+        _create_cbz()
 
 
 # 下载相关
