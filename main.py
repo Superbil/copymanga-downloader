@@ -331,8 +331,8 @@ def update_get_chapter(manga_key, comic):
 
     try:
         response.raise_for_status()
-    except Exception as e:
-        time.sleep(5)
+    except Exception as err:
+        console.log(err)
         response.raise_for_status()
 
     manga_chapter_json = response.json()
