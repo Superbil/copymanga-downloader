@@ -50,6 +50,9 @@ def create_cbz(*args, **kwargs):
     # Save the CBZ file
     file_name = f"{manga_title}.cbz"
     cbz_dir = os.path.join(cbz_dir, path_word)
+    if not os.path.exists(cbz_dir):
+        os.makedirs(cbz_dir)
+
     file_path = os.path.join(cbz_dir, file_name)
 
     cbz_path = Path(file_path)
