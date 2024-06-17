@@ -767,8 +767,10 @@ def chapter_allocation(manga_key, manga_chapter_json):
                 if file_download := download(url, filename):
                     if not file_download:
                         time.sleep(0.5)  # 添加一点延迟，错峰请求
-                _create_cbz()
                 the_queue.task_done()
+
+            # Only need to work at latest one
+            _create_cbz()
 
         idx_id = int(manga_chapter_info_json['results']['chapter']['index']) + 1
         track_desc = f"[yellow]🔻[{manga_name}]{chapter_name}(idx: {idx_id})[/]"
