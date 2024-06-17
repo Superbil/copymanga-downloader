@@ -309,7 +309,7 @@ def save_updates(
 
 
 # 判断是否已经有了，此函数是为了追踪用户下载到哪一话
-def save_new_update(manga_path_word, now_chapter):
+def save_new_update(chapter_name, manga_path_word, now_chapter):
     global UPDATE_LIST
     update_filename = "update.toml"
 
@@ -319,6 +319,7 @@ def save_new_update(manga_path_word, now_chapter):
     updates_path = os.path.join(home_dir, f".copymanga-downloader/{update_filename}")
 
     UPDATE_LIST['manga'][manga_path_word]['now_chapter'] = now_chapter
+    UPDATE_LIST['manga'][manga_path_word]['now_chapter'].comment(f"{chapter_name}")
 
     with open(updates_path, 'w') as fp:
         tomlkit.dump(UPDATE_LIST, fp)
@@ -819,6 +820,7 @@ def chapter_allocation(manga_key, manga_chapter_json):
         # 实施添加下载进度
         if ARGS and ARGS.subscribe == "1":
             save_new_update(
+                chapter_name,
                 manga_chapter_info_json['results']['chapter']['comic_path_word'],
                 manga_chapter_info_json['results']['chapter']['index'] + 1,
             )
