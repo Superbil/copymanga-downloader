@@ -162,12 +162,25 @@ def updates():
         except Exception as e:
             time.sleep(5)
             response.raise_for_status()
+
         manga_chapter_json = response.json()
-        manga_now = int(
-            Prompt.ask(
-                f"当前漫画有{manga_chapter_json['results']['total']}话的内容，请问您目前看到多少话了",
-            ),
-        )
+
+        manga_list = manga_chapter_json['results']['list']
+        total = manga_chapter_json['results']['total']
+        is_ok = False
+        while not is_ok:
+            manga_now = int(
+                Prompt.ask(f"当前漫画有{total}话的内容，请问您目前看到多少话了")
+            )
+            find_manga = next(
+                manga
+                for manga in manga_list
+                if manga['index'] == manga_now
+            )
+            yOrN = Prompt.ask(f"{manga_now} -> name={find_manga['name']} is ok ?")
+            if yOrN.lower() == 'y':
+                is_ok = True
+
         save_updates(new_update[0], new_update[1], new_update[2], manga_now, False)
     else:
         del_manga_int = int(Prompt.ask("请输入想要删除的漫画前面的序号"))
