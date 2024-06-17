@@ -242,8 +242,9 @@ def load_updates():
 
 
 def update_list():
-    for i, comic in enumerate(UPDATE_LIST):
-        print("[{}] {}".format(i + 1, comic["manga_name"]))
+    for idx, comic_key in enumerate(UPDATE_LIST['manga']):
+        comic = UPDATE_LIST['manga'][comic_key]
+        print(f"[{idx+1}] {comic['manga_name']}")
 
 
 def save_updates(
