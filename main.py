@@ -377,7 +377,7 @@ def update_get_chapter(manga_key, comic):
     #     'next': '89ef1d56-f730-11ee-932f-69ffca9e099a'
     # }
     if not manga_chapter_json['results']['list']:
-        print(f"[yellow]{manga_name}[/][bold blue]此漫画并未有新的章节，我们将跳过此漫画[/]")
+        print(f"[yellow]{manga_name}[/] [bold blue]此漫画并未有新的章节，我们将跳过此漫画[/] idx: {now_chapter}")
         return None
 
     if manga_chapter_json['results']['total'] > 500:
