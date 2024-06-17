@@ -7,9 +7,9 @@ import string
 import sys
 import threading
 import time
-import tomlkit
 
 import requests as requests
+import tomlkit
 from rich import print
 from rich.console import Console
 from rich.progress import track
@@ -377,7 +377,9 @@ def update_get_chapter(manga_key, comic):
     #     'next': '89ef1d56-f730-11ee-932f-69ffca9e099a'
     # }
     if not manga_chapter_json['results']['list']:
-        print(f"[yellow]{manga_name}[/] [bold blue]此漫画并未有新的章节，我们将跳过此漫画[/] idx: {now_chapter}")
+        print(
+            f"[yellow]{manga_name}[/] [bold blue]此漫画并未有新的章节，我们将跳过此漫画[/] idx: {now_chapter}",
+        )
         return None
 
     if manga_chapter_json['results']['total'] > 500:
@@ -751,12 +753,13 @@ def chapter_allocation(manga_key, manga_chapter_json):
         def _create_cbz():
             if config.SETTINGS['CBZ']:
                 with console.status(
-                        f"[bold yellow]正在保存CBZ存档:[{manga_name}]{chapter_name}[/]",
+                    f"[bold yellow]正在保存CBZ存档:[{manga_name}]{chapter_name}[/]",
                 ):
                     # comic_path = manga_chapter_info_json['results']['chapter']['comic_path_word']
                     create_cbz(
                         str(
-                            int(manga_chapter_info_json['results']['chapter']['index']) + 1,
+                            int(manga_chapter_info_json['results']['chapter']['index'])
+                            + 1,
                         ),
                         chapter_name,
                         manga_name,
