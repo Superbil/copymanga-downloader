@@ -165,21 +165,31 @@ def updates():
 
         manga_chapter_json = response.json()
 
-        manga_list = manga_chapter_json['results']['list']
-        total = manga_chapter_json['results']['total']
+        result_total = manga_chapter_json['results']['total']
+        raw_manga_list = manga_chapter_json['results']['list']
+        manga_list = list(filter(lambda x: x['type'] == 1, raw_manga_list))
+        manga_total = len(manga_list)
         is_ok = False
         while not is_ok:
             manga_now = int(
-                Prompt.ask(f"当前漫画有{total}话的内容，请问您目前看到多少话了")
+                Prompt.ask(
+                    f"当前漫画有 {manga_total} ({result_total}) 话的内容，请问您目前看到多少话了",
+                ),
             )
+
+            if manga_now > result_total:
+                continue
+
             find_manga = next(
-                manga
-                for manga in manga_list
-                if manga['index'] == manga_now
+                (manga for manga in manga_list if manga['index'] == manga_now),
+                None,
             )
-            yOrN = Prompt.ask(f"{manga_now} -> name={find_manga['name']} is ok ?")
-            if yOrN.lower() == 'y':
-                is_ok = True
+            if find_manga:
+                yOrN = Prompt.ask(
+                    f"{manga_now} -> name={find_manga['name']} is ok? (y/N)",
+                )
+                if yOrN.lower() == 'y':
+                    is_ok = True
 
         save_updates(new_update[0], new_update[1], new_update[2], manga_now, False)
     else:
