@@ -344,10 +344,11 @@ def update_get_chapter(manga_key, comic):
     manga_name = comic['manga_name']
     manga_group_path_word = comic['manga_group_path_word']
     now_chapter = comic['now_chapter']
+    download_max = 50
     # 因为将偏移设置到最后下载的章节，所以可以直接下载全本
     response = requests.get(
         f"https://api.{config.SETTINGS['api_url']}/api/v3/comic/{manga_key}/group/{manga_group_path_word}"
-        f"/chapters?limit=10&offset={now_chapter}&platform=3",
+        f"/chapters?limit={download_max}&offset={now_chapter}&platform=3",
         headers=config.API_HEADER,
         proxies=config.PROXIES,
     )
