@@ -359,7 +359,7 @@ def update_get_chapter(manga_key, comic):
         response.raise_for_status()
     except Exception as err:
         console.log(err)
-        response.raise_for_status()
+        return None
 
     manga_chapter_json = response.json()
     # Todo 创建传输的json,并且之后会将此json保存为temp.json修复这个问题https://github.com/misaka10843/copymanga-downloader/issues/35
