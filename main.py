@@ -388,7 +388,13 @@ def update_get_chapter(manga_key, comic):
     #     'prev': '698dc3e6-ecae-11ee-8daa-55b00c27fb36',
     #     'next': '89ef1d56-f730-11ee-932f-69ffca9e099a'
     # }
-    if not manga_chapter_json['results']['list']:
+    if any(
+        [
+            not manga_chapter_json,
+            not manga_chapter_json.get('results'),
+            not manga_chapter_json.get('results').get('list'),
+        ],
+    ):
         print(
             f"[yellow]{manga_name}[/] [bold blue]此漫画并未有新的章节，我们将跳过此漫画[/] idx: {now_chapter}",
         )
